@@ -1,24 +1,20 @@
 // categorize.js
 // 가맹점명/상대방명에 포함된 키워드로 지출 카테고리를 자동 분류한다.
-// 필요하면 이 목록에 키워드를 자유롭게 추가하면 된다.
+// 사용자가 설정에서 카테고리 목록(reportCategories)을 바꿀 수 있으므로,
+// 여기서는 "추천값"만 계산하고, 현재 설정된 목록에 있는 카테고리만 채택한다.
 
-const CATEGORY_KEYWORDS = {
-  '편의점': ['GS25', 'CU', '세븐일레븐', '이마트24', '미니스톱', '씨유'],
-  '카페': ['스타벅스', '이디야', '투썸', '커피', '카페', '폴바셋', '메가커피', '컴포즈', '빽다방', '파스쿠찌'],
-  '마트/장보기': ['이마트', '홈플러스', '롯데마트', '마트', '슈퍼', '트레이더스', '코스트코'],
-  '온라인쇼핑': ['쿠팡', '11번가', '지마켓', 'G마켓', '옥션', '위메프', '티몬', 'SKPay', '네이버페이', '스마트스토어', '알리', '테무', 'SSG'],
-  '배달음식': ['배달의민족', '배민', '요기요', '쿠팡이츠'],
-  '교통/차량': ['택시', '카카오T', '티머니', '지하철', '버스', '하이패스', '주유', 'SK에너지', 'GS칼텍스', 'S-OIL', '현대오일뱅크'],
-  '통신/구독': ['넷플릭스', 'SKT', 'KT', 'LG유플러스', '유튜브', '통신', '멜론', '왓챠', '디즈니'],
-  '병원/약국': ['약국', '의원', '병원', '치과', '한의원'],
-  '외식': ['식당', '반점', '곱창', '국밥', '김밥', '치킨', '피자', '버거', '롯데리아', '맥도날드', '배스킨', '삼겹살', '분식'],
-  '이체/송금': ['토스', '카카오페이', '송금', '이체'],
-  '주거/공과금': ['한국전력', '전기요금', '수도요금', '가스', '관리비', '도시가스'],
+const DEFAULT_KEYWORDS = {
+  '게임': ['스팀', 'STEAM', '넥슨', '넷마블', '플레이스토어', 'PlayStore', '구글플레이', '블리자드', '라이엇', 'PSN'],
+  '쇼핑': ['쿠팡', '11번가', '지마켓', 'G마켓', '옥션', '위메프', '티몬', 'SSG', '무신사', '에이블리', '올리브영'],
+  '식비': ['GS25', 'CU', '세븐일레븐', '이마트24', '스타벅스', '이디야', '투썸', '카페', '배달의민족', '요기요', '쿠팡이츠', '식당', '치킨', '피자', '버거', '마트', '이마트', '홈플러스'],
+  '의료비': ['약국', '의원', '병원', '치과', '한의원'],
+  '여가생활비': ['영화', 'CGV', '메가박스', '롯데시네마', '넷플릭스', 'Netflix', '왓챠', 'Watcha', '디즈니', 'Disney', '멜론', '노래방', '당구장', '헬스', '골프'],
 };
 
-function categorize(counterparty) {
+function suggestCategory(counterparty, reportCategories) {
   if (!counterparty) return '기타';
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+  for (const [category, keywords] of Object.entries(DEFAULT_KEYWORDS)) {
+    if (!reportCategories.includes(category)) continue;
     if (keywords.some(k => counterparty.includes(k))) {
       return category;
     }
@@ -26,4 +22,4 @@ function categorize(counterparty) {
   return '기타';
 }
 
-module.exports = { categorize, CATEGORY_KEYWORDS };
+module.exports = { suggestCategory, DEFAULT_KEYWORDS };

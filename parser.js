@@ -55,6 +55,7 @@ function parseCardMessage(rawText) {
   return {
     channel: 'card',
     cardCompany: company + '카드',
+    sourceApp: company + '카드',
     direction: 'expense',
     amount: mainAmount.amount,
     counterparty: merchant,
@@ -107,9 +108,102 @@ function parseBankMessage(rawText, appName) {
 }
 
 /**
+ * OK저축은행 입출금 알림 파싱
+ * 예: "안재훈님07/20 10:14분 출금 1원, 잔액 1,756,460원,토스 안재훈. (주)오케이저축은행"
+ */
+function parseOkBankMessage(rawText) {
+  const text = rawText.trim();
+  const re = /^(.+?)님(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})분\s+(입금|출금)\s+([\d,]+)원,\s*잔액\s*([\d,]+)원,\s*(.+?)\.\s*(.+)$/;
+  const m = text.match(re);
+  if (!m) return null;
+
+  const [, , month, day, hour, minute, dir, amount, , counterparty, bankSuffix] = m;
+  return {
+    channel: 'bank',
+    bankName: bankSuffix.trim() || 'OK저축은행',
+    sourceApp: 'OK저축은행',
+    direction: dir === '출금' ? 'expense' : 'income',
+    amount: Number(amount.replace(/,/g, '')),
+    counterparty: counterparty.trim(),
+    installment: null,
+    month: Number(month),
+    day: Number(day),
+    hour: Number(hour),
+    minute: Number(minute),
+  };
+}
+
+/**
+ * SKT 콘텐츠 이용료(휴대폰 소액결제) 문자 파싱
+ * 예:
+ *   결제 일시 2026-07-13 15:07:36
+ *   결제 금액 13,500 원
+ *   서비스 업체 Netflix
+ */
+function parseSktMessage(rawText) {
+  const text = rawText.trim();
+  if (!/콘텐츠\s*이용료|SKT/.test(text)) return null;
+
+  const dateMatch = text.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+  const amountMatch = text.match(/결제\s*금액\s*([\d,]+)\s*원/);
+  const serviceMatch = text.match(/서비스\s*업체\s*([^\n]+)/);
+
+  if (!dateMatch || !amountMatch) return null;
+
+  const [, , month, day, hour, minute] = dateMatch;
+  return {
+    channel: 'skt',
+    sourceApp: 'SKT',
+    direction: 'expense',
+    amount: Number(amountMatch[1].replace(/,/g, '')),
+    counterparty: serviceMatch ? serviceMatch[1].trim() : 'SKT 콘텐츠이용료',
+    installment: null,
+    month: Number(month),
+    day: Number(day),
+    hour: Number(hour),
+    minute: Number(minute),
+  };
+}
+
+/**
+ * 위 어떤 형식과도 안 맞는 일반 앱 푸시 알림에 대한 최후 수단 파서.
+ * 금액만 추출하고, 사용처는 비워둔 채 "확인 필요" 상태로 반환한다.
+ * (대시보드에서 사용자가 직접 사용처를 입력하게 됨)
+ */
+function parseGenericNotification(rawText, meta) {
+  const text = rawText.trim();
+  const amounts = extractAmounts(text);
+  if (amounts.length === 0) return null;
+  const amount = amounts.find(a => !a.isCumulative) || amounts[0];
+
+  const now = new Date();
+  const dt = extractDateTime(text) || {
+    month: now.getMonth() + 1,
+    day: now.getDate(),
+    hour: now.getHours(),
+    minute: now.getMinutes(),
+  };
+
+  return {
+    channel: 'notification',
+    sourceApp: meta.appName || '알수없음',
+    direction: 'expense',
+    amount: amount.amount,
+    counterparty: '',
+    installment: null,
+    needsReview: true,
+    rawText: text,
+    month: dt.month,
+    day: dt.day,
+    hour: dt.hour,
+    minute: dt.minute,
+  };
+}
+
+/**
  * 메인 파싱 함수. 어떤 포맷인지 자동 감지한다.
  * @param {string} rawText - SMS 본문 또는 알림 텍스트
- * @param {object} meta - { appName, packageName } 등 부가 정보
+ * @param {object} meta - { appName, packageName, isNotification } 등 부가 정보
  */
 function parseMessage(rawText, meta = {}) {
   if (!rawText || typeof rawText !== 'string') return null;
@@ -117,10 +211,30 @@ function parseMessage(rawText, meta = {}) {
   const card = parseCardMessage(rawText);
   if (card) return card;
 
+  const okBank = parseOkBankMessage(rawText);
+  if (okBank) return okBank;
+
+  const skt = parseSktMessage(rawText);
+  if (skt) return skt;
+
   const bank = parseBankMessage(rawText, meta.appName);
-  if (bank) return bank;
+  if (bank) return { ...bank, sourceApp: meta.appName || bank.bankName };
+
+  // 알려진 형식이 아니고, 앱 알림(문자가 아님)으로 표시된 경우에만 "확인 필요"로 저장
+  if (meta.isNotification) {
+    return parseGenericNotification(rawText, meta);
+  }
 
   return null;
 }
 
-module.exports = { parseMessage, parseCardMessage, parseBankMessage, extractAmounts, extractDateTime };
+module.exports = {
+  parseMessage,
+  parseCardMessage,
+  parseBankMessage,
+  parseOkBankMessage,
+  parseSktMessage,
+  parseGenericNotification,
+  extractAmounts,
+  extractDateTime,
+};
