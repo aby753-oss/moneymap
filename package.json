@@ -1,0 +1,12 @@
+{
+  "name": "moneymap-backend",
+  "version": "1.0.0",
+  "description": "카드 결제 문자 + 계좌 입출금 알림을 자동 수집해 월별 지출을 정리하는 개인용 서버",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
