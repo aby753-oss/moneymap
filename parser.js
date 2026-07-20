@@ -108,23 +108,46 @@ function parseBankMessage(rawText, appName) {
 }
 
 /**
- * OK저축은행 입출금 알림 파싱
- * 예: "안재훈님07/20 10:14분 출금 1원, 잔액 1,756,460원,토스 안재훈. (주)오케이저축은행"
+ * OK저축은행 입출금 문자 파싱
+ *
+ * 예:
+ * [Web발신]
+ * 안재훈님07/20 11:58분 출금 1원,
+ * 잔액 1,756,446원,토스 안재훈. (주)오케이저축은행
  */
 function parseOkBankMessage(rawText) {
-  const text = rawText.trim();
-  const re = /^(.+?)님(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})분\s+(입금|출금)\s+([\d,]+)원,\s*잔액\s*([\d,]+)원,\s*(.+?)\.\s*(.+)$/;
+  const text = rawText
+    .trim()
+    .replace(/^\[Web발신\]\s*/i, '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  const re =
+    /(.+?)님\s*(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})분\s+(입금|출금)\s+([\d,]+)\s*원\s*,?\s*잔액\s+([\d,]+)\s*원\s*,?\s*(.+?)\s*\.\s*(?:\(주\))?\s*오케이저축은행/i;
+
   const m = text.match(re);
   if (!m) return null;
 
-  const [, , month, day, hour, minute, dir, amount, , counterparty, bankSuffix] = m;
+  const [
+    ,
+    ,
+    month,
+    day,
+    hour,
+    minute,
+    transactionType,
+    amount,
+    ,
+    counterparty,
+  ] = m;
+
   return {
     channel: 'bank',
-    bankName: bankSuffix.trim() || 'OK저축은행',
+    bankName: 'OK저축은행',
     sourceApp: 'OK저축은행',
-    direction: dir === '출금' ? 'expense' : 'income',
+    direction: transactionType === '출금' ? 'expense' : 'income',
     amount: Number(amount.replace(/,/g, '')),
-    counterparty: counterparty.trim(),
+    counterparty: counterparty.trim() || '상대방미상',
     installment: null,
     month: Number(month),
     day: Number(day),
